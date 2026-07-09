@@ -1,0 +1,8 @@
+faker
+tqdm
+orjson
+pydantic
+python-dotenv
+fastapi
+uvicorn
+requests
