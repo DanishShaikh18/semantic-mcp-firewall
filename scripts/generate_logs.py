@@ -7,7 +7,7 @@ PostgreSQL, Redis, Nginx, Cloud SQL, Pub/Sub, and Microservices.
 
 Output: exactly 500 log samples saved in JSON Lines format (.jsonl) at `data/raw_logs/raw_logs.jsonl`.
 Categories (125 each): noisy_error, pii_leak, stack_trace, healthy.
-Log line count: exactly between 20 and 120 lines per log sample.
+Log line count: exactly between 4 and 8 lines per log sample.
 """
 
 import json
@@ -273,40 +273,32 @@ def generate_routine_log_line(ctx: SimulationContext) -> str:
 
 def generate_noisy_error_log() -> str:
     """
-    Generates a multiline log (20-120 lines) simulating production failures
-    hidden among lots of routine INFO and DEBUG messages.
+    Generates a multiline log (4-8 lines) simulating production failures
+    hidden among routine INFO and DEBUG messages.
     """
-    target_lines = random.randint(20, 120)
+    target_lines = random.randint(4, 8)
     ctx = SimulationContext()
     lines = []
 
-    # Choose when the failure occurs in the log window
-    error_idx = random.randint(min(10, target_lines - 5), max(12, target_lines - 4))
-
+    error_idx = random.randint(1, target_lines - 2)
     error_name, error_desc = random.choice(NOISY_ERROR_TYPES)
 
     for i in range(target_lines):
         if i == error_idx:
-            # Main failure log
             lines.append(format_log_line(ctx, "ERROR", f"[{error_name}] {error_desc}", {"status_code": 500, "error_type": error_name}))
         elif i == error_idx + 1:
-            # Immediate consequence or retry attempt
             lines.append(format_log_line(ctx, "WARNING", f"Retrying operation after failure ({error_name}) attempt 1 of 3 - backoff 1.5s..."))
-        elif i == error_idx + 2 and random.random() < 0.6:
-            # Second failure or circuit breaker warning
-            lines.append(format_log_line(ctx, "ERROR", f"Retry attempt 1 failed for {error_name}. Aborting request processing."))
-        elif i == error_idx + 3 and random.random() < 0.4:
-            # Optional embedded short traceback or system alert
-            lines.append(format_log_line(ctx, "CRITICAL", f"System alert triggered for pod {ctx.pod_name}: consecutive failures exceeded threshold."))
         else:
-            # Routine traffic (INFO/DEBUG noise)
-            # Optionally mix in occasional fake PII or subtle warnings to increase variety (~15% of noisy lines)
-            if random.random() < 0.12:
+            if random.random() < 0.15:
                 lines.append(format_log_line(ctx, "INFO", f"Request payload preview: user_email={fake.email()} client_ip={fake.ipv4()} status=processing"))
             else:
                 lines.append(generate_routine_log_line(ctx))
 
-    return "\n".join(lines[:target_lines])
+    raw_text = "\n".join(lines)
+    split_lines = [l for l in raw_text.split("\n") if l.strip()]
+    while len(split_lines) < target_lines:
+        split_lines.append(generate_routine_log_line(ctx))
+    return "\n".join(split_lines[:target_lines])
 
 
 # =====================================================================
@@ -315,16 +307,18 @@ def generate_noisy_error_log() -> str:
 
 def generate_pii_log() -> str:
     """
-    Generates a multiline log (20-120 lines) containing sensitive PII data
+    Generates a multiline log (4-8 lines) containing sensitive PII data
     (emails, phone numbers, JWTs, API keys, DB passwords, credit cards, etc.).
     """
-    target_lines = random.randint(20, 120)
+    target_lines = random.randint(4, 8)
     ctx = SimulationContext()
     lines = []
 
-    for _ in range(target_lines):
-        # We scatter fake PII across ~40% of the lines, while 60% are routine/context logs
-        if random.random() < 0.45:
+    # Ensure at least 1-2 lines contain explicit PII
+    pii_indices = set(random.sample(range(target_lines), k=random.randint(1, min(2, target_lines))))
+
+    for i in range(target_lines):
+        if i in pii_indices or random.random() < 0.35:
             pii_scenario = random.choice([
                 "email_phone",
                 "jwt_bearer",
@@ -369,13 +363,13 @@ def generate_pii_log() -> str:
                 msg = f"Incoming HTTP request headers dump: Host={ctx.service}.internal {auth_hdr} User-Agent='PostmanRuntime/7.36.1'"
                 lines.append(format_log_line(ctx, "DEBUG", msg))
         else:
-            # Routine traffic or occasional error mixed with PII
-            if random.random() < 0.15:
-                lines.append(format_log_line(ctx, "ERROR", f"Failed to process customer order for email={fake.email()}: Payment gateway returned 402 Payment Required"))
-            else:
-                lines.append(generate_routine_log_line(ctx))
+            lines.append(generate_routine_log_line(ctx))
 
-    return "\n".join(lines[:target_lines])
+    raw_text = "\n".join(lines)
+    split_lines = [l for l in raw_text.split("\n") if l.strip()]
+    while len(split_lines) < target_lines:
+        split_lines.append(generate_routine_log_line(ctx))
+    return "\n".join(split_lines[:target_lines])
 
 
 # =====================================================================
@@ -384,12 +378,15 @@ def generate_pii_log() -> str:
 
 def generate_stack_trace_log() -> str:
     """
-    Generates a multiline log (20-120 lines) containing long, realistic stack traces
+    Generates a multiline log (4-8 lines) containing concise, realistic stack traces
     resembling Python Tracebacks, Node.js/Express exceptions, PostgreSQL errors, etc.
     """
-    target_lines = random.randint(20, 120)
+    target_lines = random.randint(4, 8)
     ctx = SimulationContext()
     lines = []
+
+    # 1 pre-crash routine line
+    lines.append(generate_routine_log_line(ctx))
 
     trace_type = random.choice([
         "python_fastapi",
@@ -399,88 +396,43 @@ def generate_stack_trace_log() -> str:
         "container_crash",
     ])
 
-    # Pre-crash routine lines
-    pre_count = random.randint(4, max(5, target_lines // 3))
-    for _ in range(pre_count):
-        lines.append(generate_routine_log_line(ctx))
-
-    # Generate the authentic multiline stack trace lines
-    trace_lines = []
     if trace_type == "python_fastapi":
         exc_type = random.choice([
             ("ValueError", "invalid literal for int() with base 10: 'null'"),
             ("KeyError", f"'user_profile_token_for_{fake.email()}'"),
             ("TypeError", "'NoneType' object is not subscriptable"),
             ("AttributeError", "'OrderService' object has no attribute 'validate_signature'"),
-            ("pydantic.error_wrappers.ValidationError", "2 validation errors for OrderCreateRequest\nbody -> items\n  field required (type=value_error.missing)"),
+            ("RuntimeError", "Database connection timeout in async handler"),
         ])
         trace_lines = [
             format_log_line(ctx, "ERROR", f"Exception raised in endpoint handler POST /api/v1/orders/checkout: {exc_type[0]}: {exc_type[1]}"),
             "Traceback (most recent call last):",
             "  File \"/usr/local/lib/python3.11/site-packages/starlette/routing.py\", line 686, in __call__",
             "    await self.app(scope, receive, send)",
-            "  File \"/usr/local/lib/python3.11/site-packages/starlette/middleware/exceptions.py\", line 79, in __call__",
-            "    raise exc",
-            "  File \"/usr/local/lib/python3.11/site-packages/starlette/middleware/exceptions.py\", line 68, in __call__",
-            "    await self.app(scope, receive, send)",
-            "  File \"/usr/local/lib/python3.11/site-packages/fastapi/applications.py\", line 280, in __call__",
-            "    await super().__call__(scope, receive, send)",
-            "  File \"/usr/local/lib/python3.11/site-packages/fastapi/routing.py\", line 237, in app",
-            "    raw_response = await run_endpoint_function(",
-            "                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^",
-            "  File \"/usr/local/lib/python3.11/site-packages/fastapi/routing.py\", line 165, in run_endpoint_function",
-            "    return await dependant.call(**values)",
-            "           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^",
             "  File \"/app/src/api/v1/endpoints/orders.py\", line 142, in create_checkout_order",
             "    order_result = await order_service.process_payment(payload.customer_id, payload.amount)",
-            "                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^",
-            "  File \"/app/src/services/order_service.py\", line 89, in process_payment",
-            "    user_profile = self.cache.get_user(customer_id)",
-            "                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^",
             f"{exc_type[0]}: {exc_type[1]}",
         ]
 
     elif trace_type == "python_sqlalchemy":
         trace_lines = [
-            format_log_line(ctx, "ERROR", "Unhandled exception during SQLAlchemy session commit: psycopg2.OperationalError: FATAL: remaining connection slots are reserved for non-replication superuser connections"),
+            format_log_line(ctx, "ERROR", "Unhandled exception during SQLAlchemy session commit: psycopg2.OperationalError: FATAL: remaining connection slots are reserved"),
             "Traceback (most recent call last):",
             "  File \"/usr/local/lib/python3.11/site-packages/sqlalchemy/engine/base.py\", line 1910, in _execute_context",
             "    self.dialect.do_execute(cursor, statement, parameters, context)",
-            "  File \"/usr/local/lib/python3.11/site-packages/sqlalchemy/engine/default.py\", line 736, in do_execute",
-            "    cursor.execute(statement, parameters)",
-            "psycopg2.OperationalError: FATAL: remaining connection slots are reserved for non-replication superuser connections",
-            "",
-            "The above exception was the direct cause of the following exception:",
-            "",
-            "Traceback (most recent call last):",
             "  File \"/app/src/db/repository.py\", line 214, in save_transaction_record",
             "    self.session.commit()",
-            "  File \"/usr/local/lib/python3.11/site-packages/sqlalchemy/orm/session.py\", line 1451, in commit",
-            "    self._transaction.commit(_to_root=self.is_root)",
-            "  File \"/usr/local/lib/python3.11/site-packages/sqlalchemy/orm/session.py\", line 829, in commit",
-            "    self._prepare_impl()",
-            "  File \"/usr/local/lib/python3.11/site-packages/sqlalchemy/orm/session.py\", line 808, in _prepare_impl",
-            "    self.session.flush()",
-            "sqlalchemy.exc.OperationalError: (psycopg2.OperationalError) FATAL: remaining connection slots are reserved for non-replication superuser connections",
-            "[SQL: INSERT INTO payments (id, customer_id, amount, status) VALUES (%(id)s, %(customer_id)s, %(amount)s, %(status)s)]",
-            f"[parameters: {{'id': 'pay_{uuid.uuid4().hex[:8]}', 'customer_id': 'cust_{random.randint(10000, 99999)}', 'amount': 249.99, 'status': 'PENDING'}}]",
+            "sqlalchemy.exc.OperationalError: (psycopg2.OperationalError) FATAL: remaining connection slots are reserved",
         ]
 
     elif trace_type == "nodejs_express":
         trace_lines = [
             format_log_line(ctx, "ERROR", "UnhandledPromiseRejectionWarning: TypeError: Cannot read properties of undefined (reading 'token')"),
-            "UnhandledPromiseRejectionWarning: TypeError: Cannot read properties of undefined (reading 'token')",
+            "TypeError: Cannot read properties of undefined (reading 'token')",
             "    at AuthController.verifySession (/app/src/controllers/authController.js:142:38)",
-            "    at processTicksAndRejections (internal/process/task_queues.js:95:5)",
             "    at async AuthMiddleware.authenticate (/app/src/middleware/auth.js:42:20)",
             "    at async Layer.handle [as handle_request] (/app/node_modules/express/lib/router/layer.js:95:5)",
-            "    at async trim_prefix (/app/node_modules/express/lib/router/index.js:328:13)",
-            "    at async /app/node_modules/express/lib/router/index.js:286:9",
-            "    at async Function.process_params (/app/node_modules/express/lib/router/index.js:346:12)",
-            "    at async next (/app/node_modules/express/lib/router/index.js:280:10)",
-            "    at async cors (/app/node_modules/cors/lib/index.js:188:7)",
-            "    at async Layer.handle [as handle_request] (/app/node_modules/express/lib/router/layer.js:95:5)",
-            "UnhandledPromiseRejectionWarning: Unhandled promise rejection. This error originated either by throwing inside of an async function without a catch block, or by rejecting a promise which was not handled with .catch().",
+            "UnhandledPromiseRejectionWarning: Unhandled promise rejection.",
         ]
 
     elif trace_type == "nodejs_postgres":
@@ -488,51 +440,31 @@ def generate_stack_trace_log() -> str:
             format_log_line(ctx, "ERROR", "Database connection failure during query execution: connect ECONNREFUSED 10.128.0.18:5432"),
             "Error: connect ECONNREFUSED 10.128.0.18:5432",
             "    at TCPConnectWrap.afterConnect [as oncomplete] (net.js:1146:16)",
-            "    at Protocol._enqueue (/app/node_modules/pg/lib/protocol/protocol.js:145:15)",
-            "    at Client.connect (/app/node_modules/pg/lib/client.js:101:18)",
-            "    at BoundPool._connect (/app/node_modules/pg-pool/index.js:213:12)",
-            "    at /app/node_modules/pg-pool/index.js:188:14",
-            "    at new Promise (<anonymous>)",
             "    at BoundPool.connect (/app/node_modules/pg-pool/index.js:183:12)",
             "    at DatabaseService.query (/app/src/services/database.js:45:28)",
             "    at async InventoryController.checkStock (/app/src/controllers/inventoryController.js:68:22)",
-            "    at async Layer.handle [as handle_request] (/app/node_modules/express/lib/router/layer.js:95:5)",
-            "    at async next (/app/node_modules/express/lib/router/route.js:144:14)",
-            "    at async Route.dispatch (/app/node_modules/express/lib/router/route.js:114:3)",
         ]
 
     else:
         trace_lines = [
-            format_log_line(ctx, "CRITICAL", f"Container called exit(1). Command failed with status code 1. System error in worker process."),
+            format_log_line(ctx, "CRITICAL", "Container called exit(1). Command failed with status code 1. System error in worker process."),
             "Traceback (most recent call last):",
             "  File \"/app/main.py\", line 84, in <module>",
             "    asyncio.run(main())",
-            "  File \"/usr/local/lib/python3.11/asyncio/runners.py\", line 190, in run",
-            "    return runner.run(main)",
-            "  File \"/usr/local/lib/python3.11/asyncio/runners.py\", line 118, in run",
-            "    return self._loop.run_until_complete(task)",
-            "  File \"/usr/local/lib/python3.11/asyncio/base_events.py\", line 653, in run_until_complete",
-            "    return future.result()",
             "  File \"/app/src/worker.py\", line 112, in main",
             "    await subscriber.listen_and_process()",
-            "  File \"/app/src/pubsub/subscriber.py\", line 78, in listen_and_process",
-            "    raise RuntimeError(\"PubSub subscriber connection dropped unexpectedly without recovery options\")",
             "RuntimeError: PubSub subscriber connection dropped unexpectedly without recovery options",
         ]
 
     lines.extend(trace_lines)
 
-    # Post-crash / recovery or additional routine lines until target_lines reached
-    remaining = target_lines - len(lines)
-    if remaining > 0:
-        lines.append(format_log_line(ctx, "WARNING", f"Container/worker crash detected for {ctx.service}. Attempting graceful restart cleanup..."))
-        for _ in range(remaining - 1):
-            lines.append(generate_routine_log_line(ctx))
-    elif remaining < 0:
-        # If traceback exceeded target_lines, trim or adjust pre_count
-        lines = lines[:target_lines]
+    raw_text = "\n".join(lines)
+    split_lines = [l for l in raw_text.split("\n") if l.strip()]
 
-    return "\n".join(lines[:target_lines])
+    while len(split_lines) < target_lines:
+        split_lines.append(generate_routine_log_line(ctx))
+
+    return "\n".join(split_lines[:target_lines])
 
 
 # =====================================================================
@@ -541,31 +473,30 @@ def generate_stack_trace_log() -> str:
 
 def generate_healthy_log() -> str:
     """
-    Generates a multiline log (20-120 lines) representing entirely healthy,
+    Generates a multiline log (4-8 lines) representing entirely healthy,
     normal operation (INFO/DEBUG, startup, health checks, metrics, successful API requests).
     No crashes, no exceptions, no stack traces, minimal or no PII.
     """
-    target_lines = random.randint(20, 120)
+    target_lines = random.randint(4, 8)
     ctx = SimulationContext()
     lines = []
 
-    # Optionally start with startup sequence (~30% of healthy logs)
-    if random.random() < 0.3:
+    if random.random() < 0.25 and target_lines >= 5:
         lines.extend([
             format_log_line(ctx, "INFO", f"[STARTUP] Initializing microservice revision {ctx.revision} on platform {ctx.platform}"),
             format_log_line(ctx, "INFO", f"[STARTUP] Loading environment configurations from /app/config/settings.yaml (namespace: {ctx.namespace})"),
             format_log_line(ctx, "INFO", f"[STARTUP] Connecting to Cloud SQL PostgreSQL instance primary-pg-prod-01 (pool_min=5, pool_max=20)"),
             format_log_line(ctx, "INFO", f"[STARTUP] PostgreSQL connection pool initialized successfully with 10 active workers"),
-            format_log_line(ctx, "INFO", f"[STARTUP] Redis cache connection verified: cluster node 10.128.0.14:6379 (latency: 0.8ms)"),
-            format_log_line(ctx, "INFO", f"[STARTUP] Pub/Sub subscriber listening on projects/gcp-prod/subscriptions/{ctx.service}-sub-v1"),
-            format_log_line(ctx, "INFO", f"[STARTUP] Cloud Run traffic routing update: revision {ctx.revision} allocated 100% traffic"),
-            format_log_line(ctx, "INFO", f"[STARTUP] HTTP server listening on 0.0.0.0:8080 (workers=4, pid={random.randint(1, 20)})"),
         ])
 
     while len(lines) < target_lines:
         lines.append(generate_routine_log_line(ctx))
 
-    return "\n".join(lines[:target_lines])
+    raw_text = "\n".join(lines)
+    split_lines = [l for l in raw_text.split("\n") if l.strip()]
+    while len(split_lines) < target_lines:
+        split_lines.append(generate_routine_log_line(ctx))
+    return "\n".join(split_lines[:target_lines])
 
 
 # =====================================================================
@@ -580,7 +511,7 @@ def main():
     3. Assigns sequential integer IDs (`id`: 1 to 500).
     4. Writes the final JSONL dataset to `data/raw_logs/raw_logs.jsonl`.
     """
-    print("Starting generation of synthetic backend logs dataset...")
+    print("Starting generation of synthetic backend logs dataset (4-8 lines per sample)...")
 
     # 1. Generate exactly 125 samples per category
     noisy_errors = [generate_noisy_error_log() for _ in range(125)]
@@ -616,7 +547,6 @@ def main():
     # 6. Write final JSONL file
     with open(output_path, "w", encoding="utf-8") as f:
         for rec in records:
-            # Order keys explicitly: id, category, log
             ordered_rec = {
                 "id": rec["id"],
                 "category": rec["category"],
