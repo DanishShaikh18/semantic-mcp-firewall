@@ -6,7 +6,9 @@
 venv/
 .venv/
 env/
-
+# Models & Weights
+models/
+*.gguf
 # Data & Generated Logs
 data/
 *.jsonl
