@@ -1,13 +1,17 @@
 from fastapi import FastAPI, Request
 from llama_cpp import Llama
 import json
+from pathlib import Path
 
 app = FastAPI(title="Edge Logging Firewall")
 
+# Resolve model path dynamically relative to project root
+MODEL_PATH = Path(__file__).resolve().parent.parent / "models" / "llama-3.2-1b-instruct.Q4_K_M.gguf"
+
 # Load the GGUF model into memory on startup
-print("Loading Llama 3.2 Edge Firewall onto CPU...")
+print(f"Loading Llama 3.2 Edge Firewall onto CPU from {MODEL_PATH}...")
 llm = Llama(
-    model_path="models\llama-3.2-1b-instruct.Q4_K_M.gguf",
+    model_path=str(MODEL_PATH),
     n_ctx=2048,          # Context window for log clusters
     n_gpu_layers=0,      # 0 means pure CPU execution
     chat_format="chatml" # Matches your Unsloth training template
