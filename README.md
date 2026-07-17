@@ -1,4 +1,4 @@
-# Semantic MCP Firewall 🛡️
+# Fine-Tuned-Log-to-JSON-Parser 🛡️
 
 ![Python](https://img.shields.io/badge/Python-3.13+-3776AB?style=for-the-badge&logo=python&logoColor=white)
 ![FastAPI](https://img.shields.io/badge/FastAPI-0.139+-009688?style=for-the-badge&logo=fastapi&logoColor=white)
@@ -17,7 +17,7 @@ In modern microservice architectures, backend applications generate massive volu
 2. **Sensitive Data Leaks**: Unintentionally transmitting **Personally Identifiable Information (PII)**—such as JWTs, database connection strings, email addresses, and API keys—outside the secure network perimeter.
 3. **AI Hallucination & Latency**: General-purpose cloud LLMs are slow, costly, and prone to schema hallucination when asked to parse strict telemetry payloads under high concurrency.
 
-**Semantic MCP Firewall** solves this by embedding a specialized, fine-tuned **1-Billion parameter edge AI model** directly adjacent to production services. Running entirely offline on CPU using **llama.cpp**, it filters out benign noise, redacts sensitive credentials, and guarantees strict, deterministic JSON outputs without requiring a dedicated GPU or external cloud APIs.
+**Fine-Tuned-Log-to-JSON-Parser** solves this by embedding a specialized, fine-tuned **1-Billion parameter edge AI model** directly adjacent to production services. Running entirely offline on CPU using **llama.cpp**, it filters out benign noise, redacts sensitive credentials, and guarantees strict, deterministic JSON outputs without requiring a dedicated GPU or external cloud APIs.
 
 ---
 
@@ -62,7 +62,7 @@ flowchart LR
 ## 📂 Project Structure
 
 ```text
-semantic-mcp-firewall/
+Fine-Tuned-Log-to-JSON-Parser/
 ├── app/
 │   ├── main.py                   # FastAPI application wrapper running offline llama.cpp inference
 │   └── test_sender.py            # Test script simulating realistic multiline error logs sent via HTTP POST
