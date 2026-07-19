@@ -1,17 +1,27 @@
 import requests
+import time
+import json
 
-# The local endpoint exposed by your FastAPI server
-url = "http://127.0.0.1:8080/distill_logs"
+# Your live Google Cloud Run production URL
+URL = "https://log-distiller-service-491483155818.asia-south1.run.app/distill_logs"
 
-# A realistic, messy sample log showing a failure mixed with healthy requests
-sample_raw_log = """
-192.168.1.45 - - [16/Jul/2026:23:14:02 +0000] "GET /api/v1/auth/status HTTP/1.1" 200 422
-2026-07-16 23:14:03 [CRITICAL] auth-service internal connection pool exhaustion. Failed to connect to database instance at 10.0.4.12:5432. Retrying in 5s... ConnectionTimeoutException: pool checkout timeout after 30000ms.
-192.168.1.99 - - [16/Jul/2026:23:14:05 +0000] "POST /api/v1/metrics HTTP/1.1" 201 120
-"""
+# Sample log data to test
+payload = {
+    "log": "ERROR 2026-07-19 21:45:00 [auth-service] Connection timed out after 5000ms"
+}
 
-print("Sending 1 raw sample error log to the Edge Firewall...")
-response = requests.post(url, data=sample_raw_log.strip())
+print("Sending request to production Cloud Run instance...")
+start_time = time.time()
 
-print("\n--- Response From Local AI Microservice ---")
-print(response.json())
+try:
+    response = requests.post(URL, json=payload, headers={"Content-Type": "application/json"})
+    end_time = time.time()
+    
+    latency = end_time - start_time
+    print(f"Status Code: {response.status_code}")
+    print(f"Time Taken: {latency:.2f} seconds")
+    print("\nParsed Model Output:")
+    print(json.dumps(response.json(), indent=4))
+
+except Exception as e:
+    print(f"An error occurred: {e}")
