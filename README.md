@@ -131,6 +131,21 @@ python app/test_sender.py
 
 ---
 
+
+### 🚀 Local Setup
+
+**Note:** The quantized GGUF model is excluded from version control. You must download it before running the application.
+
+1. Clone the repository:
+   `git clone https://github.com/your-username/Fine-Tuned-Log-to-JSON-Parser.git`
+2. Download the model:
+   Download `llama-3.2-1b-instruct.Q4_K_M.gguf` (link to your HuggingFace or source) and place it inside the `models/` directory.
+3. Run with Docker:
+   `docker build -t log-distiller .`
+   `docker run -p 8080:8080 log-distiller`
+
+---
+
 ## 🔮 Future Enhancements
 
 - **Containerization (Docker & Multi-Stage Builds)**: Package the FastAPI server and pre-compiled `llama.cpp` C++ binaries into a lightweight, multi-stage Docker container (`Dockerfile.cpu`) for portable edge deployment.
