@@ -1,0 +1,12 @@
+# .dockerignore
+.git
+.gitignore
+.venv
+__pycache__/
+*.pyc
+data/
+notebooks/
+scripts/
+README.md
+requirements-training.txt
+LICENSE
