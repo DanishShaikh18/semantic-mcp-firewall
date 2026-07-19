@@ -14,7 +14,8 @@ print("Sending request to production Cloud Run instance...")
 start_time = time.time()
 
 try:
-    response = requests.post(URL, json=payload, headers={"Content-Type": "application/json"})
+    # Send the raw string directly since the FastAPI endpoint accepts text/plain
+    response = requests.post(URL, data=payload["log"], headers={"Content-Type": "text/plain"})
     end_time = time.time()
     
     latency = end_time - start_time

@@ -146,8 +146,20 @@ python app/test_sender.py
 
 ---
 
-## 🔮 Future Enhancements
+## ☁️ Cloud Deployment (GCP Cloud Run)
 
-- **Containerization (Docker & Multi-Stage Builds)**: Package the FastAPI server and pre-compiled `llama.cpp` C++ binaries into a lightweight, multi-stage Docker container (`Dockerfile.cpu`) for portable edge deployment.
-- **Serverless Edge Scaling (GCP Cloud Run)**: Deploy the containerized microservice to **Google Cloud Run** with CPU boost enabled for zero-to-N autoscaling on edge endpoints.
-- **Dynamic Schema Validation with Pydantic**: Integrate structured output grammars (`GBNF` grammars in `llama.cpp`) to mathematically enforce runtime adherence to complex Pydantic telemetry models.
+The application is containerized and deployed as a serverless microservice on **Google Cloud Run**. The deployment is specifically tuned for CPU-based LLM inference to balance performance with cost-efficiency.
+
+### Deployment Architecture
+- **Container Registry**: Google Artifact Registry
+- **Region**: `asia-south1`
+- **Compute Allocation**: 1 vCPU, 2Gi Memory
+- **Inference Engine**: Pure CPU inference utilizing `llama.cpp` and GGUF 4-bit quantization, entirely removing the need for expensive GPU provisioning.
+
+### Scaling & Concurrency Configuration
+- **Min Instances (0)**: Configured to "scale-to-zero." The service incurs no compute costs when the API is idle.
+- **Max Instances (2)**: Capped at a strict maximum to ensure predictable billing under heavy load.
+- **Concurrency (1)**: Limited to exactly 1 concurrent request per container instance. This is a crucial configuration for local LLM inference on CPUs, ensuring that a single request has exclusive access to the 1 vCPU and 2Gi RAM. It prevents memory overflow and guarantees stable inference latency.
+
+### Security
+- **Identity & Access Management (IAM)**: Operates under a dedicated, least-privilege Service Account (`log-parser-runner`) rather than the default compute engine account, ensuring strict access boundaries.
