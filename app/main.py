@@ -1,9 +1,14 @@
-from fastapi import FastAPI, Request
+from fastapi import FastAPI
+from pydantic import BaseModel
 from llama_cpp import Llama
 import json
 from pathlib import Path
 
 app = FastAPI(title="Edge Logging Firewall")
+
+# 1. Define the input schema so Swagger UI knows what to render
+class LogInput(BaseModel):
+    log: str
 
 # Resolve model path dynamically relative to project root
 MODEL_PATH = Path(__file__).resolve().parent.parent / "models" / "llama-3.2-1b-instruct.Q4_K_M.gguf"
@@ -19,11 +24,11 @@ llm = Llama(
 
 SYSTEM_PROMPT = "You are an Edge Logging Firewall. Analyze backend production logs, ignore irrelevant noise, redact sensitive PII, and output ONLY valid JSON matching the telemetry schema."
 
+# 2. Update the endpoint to use the Pydantic schema
 @app.post("/distill_logs")
-async def analyze_logs(request: Request):
-    # Receive the raw text bytes from the sender script
-    raw_log_bytes = await request.body()
-    raw_log = raw_log_bytes.decode("utf-8")
+async def analyze_logs(payload: LogInput):
+    # Extract the string directly from the validated Pydantic model
+    raw_log = payload.log
     
     # Format the payload exactly like the training data layout
     messages = [
