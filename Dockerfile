@@ -13,8 +13,8 @@ RUN apt-get update && apt-get install -y \
 # 4. Copy only the requirements first (this caches the installation step)
 COPY requirements.txt .
 
-# 5. Install the Python dependencies
-RUN pip install --no-cache-dir -r requirements.txt
+# 5. Install Python dependencies, forcing pre-built wheels for llama-cpp-python
+RUN pip install --no-cache-dir -r requirements.txt --extra-index-url https://abetlen.github.io/llama-cpp-python/whl/cpu
 
 # 6. Copy your FastAPI application code
 COPY ./app /code/app

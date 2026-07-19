@@ -1,7 +1,7 @@
 import requests
 
 # The local endpoint exposed by your FastAPI server
-url = "http://127.0.0.1:8000/distill_logs"
+url = "http://127.0.0.1:8080/distill_logs"
 
 # A realistic, messy sample log showing a failure mixed with healthy requests
 sample_raw_log = """
