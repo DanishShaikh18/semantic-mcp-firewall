@@ -6,6 +6,8 @@
 ![Llama](https://img.shields.io/badge/Llama_3.2_1B-PEFT%20%2F%20QLoRA-0467DF?style=for-the-badge)
 ![llama.cpp](https://img.shields.io/badge/llama.cpp-CPU_Inference-FF7F00?style=for-the-badge)
 
+**🌐 Live API / Swagger UI**: [https://log-distiller-service-491483155818.asia-south1.run.app/docs](https://log-distiller-service-491483155818.asia-south1.run.app/docs)
+
 **An end-to-end AI & Cloud project that intercepts raw backend logs, leverages a fine-tuned LLM to redact PII and extract structured JSON telemetry, and runs entirely serverless on Google Cloud.**
 
 ---
